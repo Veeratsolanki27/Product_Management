@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
 import Typography from '@mui/material/Typography';
@@ -16,37 +16,71 @@ import MailIcon from '@mui/icons-material/Mail';
 import PhoneIphoneIcon from '@mui/icons-material/PhoneIphone';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import SaveIcon from '@mui/icons-material/Save';
+import BadgeIcon from '@mui/icons-material/Badge';
+import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
+import Avatar from '@mui/material/Avatar';
+import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
 import Swal from 'sweetalert2';
+import { getCurrentUser } from '../services/api';
 
 const Settings = () => {
   const [tabIndex, setTabIndex] = useState(0);
+  const user = getCurrentUser() || {};
 
-  // Dynamic Form State for Personal Details
+  const userRolesText = Array.isArray(user.roles)
+    ? user.roles.map(r => r.replace('ROLE_', '')).join(', ')
+    : 'USER';
+
+  // Dynamic Form State for Personal Details initialized from logged-in user
   const [personalInfo, setPersonalInfo] = useState({
-    name: 'P Kumar',
+    name: user.fullName || user.username || 'Administrator',
+    username: user.username || 'admin',
     location: 'India',
-    bio: 'Managing the Product Dashboard & UI Operations',
-    userType: 'Super Admin',
-    phone: '91999999999',
-    email: 'code@codingmstr.com',
+    bio: 'Product Dashboard Administrator & System Operations Lead.',
+    userType: userRolesText.includes('ADMIN') ? 'Super Admin' : 'Standard User',
+    phone: '9876543210',
+    email: user.email || 'admin@example.com',
     profileUrl: 'https://codingmstr.com',
-    address: 'Patna, India',
+    address: 'Mumbai, Maharashtra, India',
+    zipCode: '400001',
   });
 
   // Dynamic Form State for Account Settings
   const [accountInfo, setAccountInfo] = useState({
-    username: 'CodingMSTR',
-    accountEmail: 'code@codingmstr.com',
-    userType: 'Super Admin',
+    username: user.username || 'admin',
+    accountEmail: user.email || 'admin@example.com',
+    userType: userRolesText.includes('ADMIN') ? 'Super Admin' : 'Standard User',
     location: 'India',
   });
 
+  useEffect(() => {
+    const loggedUser = getCurrentUser();
+    if (loggedUser) {
+      const roles = Array.isArray(loggedUser.roles)
+        ? loggedUser.roles.map(r => r.replace('ROLE_', '')).join(', ')
+        : 'USER';
+      setPersonalInfo((prev) => ({
+        ...prev,
+        name: loggedUser.fullName || loggedUser.username,
+        username: loggedUser.username,
+        email: loggedUser.email || '',
+        userType: roles.includes('ADMIN') ? 'Super Admin' : 'Standard User',
+      }));
+      setAccountInfo((prev) => ({
+        ...prev,
+        username: loggedUser.username,
+        accountEmail: loggedUser.email || '',
+        userType: roles.includes('ADMIN') ? 'Super Admin' : 'Standard User',
+      }));
+    }
+  }, []);
+
   // Switch states for Advance Setting
   const [switches, setSwitches] = useState({
-    gilad: true,
-    jason: false,
-    antoine: true,
+    emailNotif: true,
+    orderAlerts: true,
+    security2FA: false,
   });
 
   // Password state
@@ -65,19 +99,42 @@ const Settings = () => {
   };
 
   const handleSaveAlert = (title, text) => {
+    // Persist updated user full name / email into localStorage
+    const loggedUser = getCurrentUser();
+    if (loggedUser) {
+      loggedUser.fullName = personalInfo.name;
+      loggedUser.email = personalInfo.email;
+      localStorage.setItem('user', JSON.stringify(loggedUser));
+    }
+
     Swal.fire({
       title: title || 'Saved!',
-      text: text || 'Your changes have been saved successfully.',
+      text: text || 'Your profile details have been saved successfully.',
       icon: 'success',
-      confirmButtonColor: '#3085d6',
+      confirmButtonColor: '#1976d2',
       confirmButtonText: 'OK',
     });
+  };
+
+  const handlePasswordSubmit = (e) => {
+    e.preventDefault();
+    if (!passwords.newPass || passwords.newPass !== passwords.confirm) {
+      Swal.fire('Error', 'New passwords do not match!', 'error');
+      return;
+    }
+    Swal.fire({
+      title: 'Password Updated!',
+      text: 'Your security password has been changed successfully.',
+      icon: 'success',
+      confirmButtonColor: '#1976d2',
+    });
+    setPasswords({ current: '', newPass: '', confirm: '' });
   };
 
   return (
     <Box sx={{ p: 1 }}>
       {/* Top Tabs */}
-      <Box sx={{ borderBottom: 1, borderColor: '#e0e0e0', mb: 3 }}>
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
         <Tabs
           value={tabIndex}
           onChange={handleTabChange}
@@ -86,15 +143,13 @@ const Settings = () => {
               textTransform: 'none',
               fontWeight: 500,
               fontSize: '0.95rem',
-              color: '#555',
               mr: 2,
             },
             '& .Mui-selected': {
-              color: '#008080 !important',
+              color: 'primary.main',
               fontWeight: 600,
             },
             '& .MuiTabs-indicator': {
-              backgroundColor: '#008080',
               height: 3,
             },
           }}
@@ -109,30 +164,55 @@ const Settings = () => {
       {/* Tab 0: Profile */}
       {tabIndex === 0 && (
         <Grid container spacing={3}>
-          {/* Left Column Card: P Kumar Summary */}
+          {/* Left Column Card: Logged In User Summary */}
           <Grid size={{ xs: 12, md: 4 }}>
             <Card sx={{ p: 3, borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.05)', height: '100%' }}>
-              <Typography variant="h6" sx={{ fontWeight: 700, mb: 3, color: '#222' }}>
-                {personalInfo.name}
-              </Typography>
+              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 3 }}>
+                <Avatar
+                  sx={{
+                    width: 72,
+                    height: 72,
+                    bgcolor: 'primary.main',
+                    fontSize: '1.8rem',
+                    fontWeight: 700,
+                    mb: 1.5,
+                  }}
+                >
+                  {personalInfo.name ? personalInfo.name.charAt(0).toUpperCase() : 'U'}
+                </Avatar>
+                <Typography variant="h6" sx={{ fontWeight: 700, color: 'text.primary', textAlign: 'center' }}>
+                  {personalInfo.name}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ mb: 1 }}>
+                  @{personalInfo.username}
+                </Typography>
+                <Chip
+                  icon={<VerifiedUserIcon fontSize="small" />}
+                  label={personalInfo.userType}
+                  color="primary"
+                  size="small"
+                  sx={{ fontWeight: 600 }}
+                />
+              </Box>
+
               <Stack spacing={2.5}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <MailIcon sx={{ color: '#1976d2' }} />
-                  <Typography variant="body2" sx={{ color: '#444' }}>
+                  <MailIcon sx={{ color: 'primary.main' }} />
+                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                     {personalInfo.email}
                   </Typography>
                 </Box>
                 <Divider />
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <PhoneIphoneIcon sx={{ color: '#1976d2' }} />
-                  <Typography variant="body2" sx={{ color: '#444' }}>
+                  <PhoneIphoneIcon sx={{ color: 'primary.main' }} />
+                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                     (+91) {personalInfo.phone}
                   </Typography>
                 </Box>
                 <Divider />
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <LocationOnIcon sx={{ color: '#1976d2' }} />
-                  <Typography variant="body2" sx={{ color: '#444' }}>
+                  <LocationOnIcon sx={{ color: 'primary.main' }} />
+                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                     {personalInfo.address}
                   </Typography>
                 </Box>
@@ -143,28 +223,28 @@ const Settings = () => {
           {/* Right Column Card: About me & Details */}
           <Grid size={{ xs: 12, md: 8 }}>
             <Card sx={{ p: 3, borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-              <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: '#222' }}>
-                About me
+              <Typography variant="h6" sx={{ fontWeight: 600, mb: 1.5, color: 'text.primary' }}>
+                About Me
               </Typography>
-              <Typography variant="body2" sx={{ color: '#666', lineHeight: 1.6, mb: 3 }}>
+              <Typography variant="body2" sx={{ color: 'text.secondary', lineHeight: 1.6, mb: 3 }}>
                 {personalInfo.bio}
               </Typography>
 
-              <Divider sx={{ my: 3 }} />
+              <Divider sx={{ my: 2.5 }} />
 
-              <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: '#222' }}>
-                Details
+              <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: 'text.primary' }}>
+                User Account Overview
               </Typography>
 
               <Grid container spacing={2} sx={{ mb: 1 }}>
                 <Grid size={{ xs: 4 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#444' }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'text.primary' }}>
                     Full Name:
                   </Typography>
                 </Grid>
                 <Grid size={{ xs: 8 }}>
-                  <Typography variant="body2" sx={{ color: '#555' }}>
-                    Albert Eintein
+                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                    {personalInfo.name}
                   </Typography>
                 </Grid>
               </Grid>
@@ -172,13 +252,13 @@ const Settings = () => {
 
               <Grid container spacing={2} sx={{ mb: 1 }}>
                 <Grid size={{ xs: 4 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#444' }}>
-                    Father's Name:
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                    Username:
                   </Typography>
                 </Grid>
                 <Grid size={{ xs: 8 }}>
-                  <Typography variant="body2" sx={{ color: '#555' }}>
-                    Sr. Albert Eintein
+                  <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+                    {personalInfo.username}
                   </Typography>
                 </Grid>
               </Grid>
@@ -186,13 +266,13 @@ const Settings = () => {
 
               <Grid container spacing={2} sx={{ mb: 1 }}>
                 <Grid size={{ xs: 4 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#444' }}>
-                    Address:
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                    Email Address:
                   </Typography>
                 </Grid>
                 <Grid size={{ xs: 8 }}>
-                  <Typography variant="body2" sx={{ color: '#555' }}>
-                    Patna, India
+                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                    {personalInfo.email}
                   </Typography>
                 </Grid>
               </Grid>
@@ -200,28 +280,26 @@ const Settings = () => {
 
               <Grid container spacing={2} sx={{ mb: 1 }}>
                 <Grid size={{ xs: 4 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#444' }}>
-                    Zip Code:
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                    Assigned Roles:
                   </Typography>
                 </Grid>
                 <Grid size={{ xs: 8 }}>
-                  <Typography variant="body2" sx={{ color: '#555' }}>
-                    809990
-                  </Typography>
+                  <Chip label={userRolesText} size="small" color="primary" variant="outlined" />
                 </Grid>
               </Grid>
               <Divider sx={{ my: 1.5 }} />
 
-              <Grid container spacing={2}>
+              <Grid container spacing={2} sx={{ mb: 1 }}>
                 <Grid size={{ xs: 4 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#444' }}>
-                    Website:
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                    Location:
                   </Typography>
                 </Grid>
                 <Grid size={{ xs: 8 }}>
-                  <Link href="https://trickuweb.com" target="_blank" underline="hover" sx={{ color: '#1976d2' }}>
-                    https://trickuweb.com
-                  </Link>
+                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                    {personalInfo.address}
+                  </Typography>
                 </Grid>
               </Grid>
             </Card>
@@ -236,50 +314,47 @@ const Settings = () => {
             {/* Card 1: Personal Information */}
             <Grid size={{ xs: 12, md: 6 }}>
               <Card sx={{ p: 3, borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-                <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, color: '#333' }}>
+                <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, color: 'text.primary' }}>
                   Personal Information
                 </Typography>
                 <Grid container spacing={2} sx={{ mb: 3 }}>
                   <Grid size={{ xs: 6 }}>
                     <TextField
-                      label="Name"
+                      label="Full Name"
                       value={personalInfo.name}
                       onChange={(e) => setPersonalInfo({ ...personalInfo, name: e.target.value })}
                       fullWidth
-                      variant="outlined"
                     />
                   </Grid>
                   <Grid size={{ xs: 6 }}>
                     <TextField
-                      label="Location"
-                      value={personalInfo.location}
-                      onChange={(e) => setPersonalInfo({ ...personalInfo, location: e.target.value })}
+                      label="Username"
+                      disabled
+                      value={personalInfo.username}
                       fullWidth
-                      variant="outlined"
+                      helperText="Username is permanent"
                     />
                   </Grid>
                 </Grid>
                 <TextField
-                  label="Bio"
+                  label="Bio / Designation"
                   multiline
                   rows={3}
                   value={personalInfo.bio}
                   onChange={(e) => setPersonalInfo({ ...personalInfo, bio: e.target.value })}
                   fullWidth
-                  variant="outlined"
                   sx={{ mb: 3 }}
                 />
                 <TextField
                   select
-                  label="User Type"
+                  label="User Role"
                   value={personalInfo.userType}
                   onChange={(e) => setPersonalInfo({ ...personalInfo, userType: e.target.value })}
                   fullWidth
-                  variant="outlined"
                   sx={{ width: 220 }}
                 >
                   <MenuItem value="Super Admin">Super Admin</MenuItem>
-                  <MenuItem value="Admin">Admin</MenuItem>
+                  <MenuItem value="Standard User">Standard User</MenuItem>
                   <MenuItem value="Editor">Editor</MenuItem>
                 </TextField>
               </Card>
@@ -288,7 +363,7 @@ const Settings = () => {
             {/* Card 2: Contact Information */}
             <Grid size={{ xs: 12, md: 6 }}>
               <Card sx={{ p: 3, borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-                <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, color: '#333' }}>
+                <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, color: 'text.primary' }}>
                   Contact Information
                 </Typography>
                 <Grid container spacing={2} sx={{ mb: 3 }}>
@@ -298,35 +373,31 @@ const Settings = () => {
                       value={personalInfo.phone}
                       onChange={(e) => setPersonalInfo({ ...personalInfo, phone: e.target.value })}
                       fullWidth
-                      variant="outlined"
                     />
                   </Grid>
                   <Grid size={{ xs: 6 }}>
                     <TextField
-                      label="Email"
+                      label="Email Address"
                       value={personalInfo.email}
                       onChange={(e) => setPersonalInfo({ ...personalInfo, email: e.target.value })}
                       fullWidth
-                      variant="outlined"
                     />
                   </Grid>
                 </Grid>
                 <TextField
-                  label="Profile URL"
+                  label="Profile / Website URL"
                   value={personalInfo.profileUrl}
                   onChange={(e) => setPersonalInfo({ ...personalInfo, profileUrl: e.target.value })}
                   fullWidth
-                  variant="outlined"
                   sx={{ mb: 3 }}
                 />
                 <TextField
-                  label="Address"
+                  label="Address & City"
                   multiline
                   rows={3}
                   value={personalInfo.address}
                   onChange={(e) => setPersonalInfo({ ...personalInfo, address: e.target.value })}
                   fullWidth
-                  variant="outlined"
                 />
               </Card>
             </Grid>
@@ -335,7 +406,6 @@ const Settings = () => {
             <Button
               type="submit"
               variant="contained"
-              color="primary"
               startIcon={<SaveIcon />}
               sx={{ px: 4, py: 1.2, fontWeight: 700, borderRadius: 1.5 }}
             >
@@ -350,17 +420,16 @@ const Settings = () => {
         <Stack spacing={3}>
           {/* Top Card: General Setting */}
           <Card sx={{ p: 3, borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-            <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, color: '#333' }}>
-              General Setting
+            <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, color: 'text.primary' }}>
+              Account Settings
             </Typography>
             <Grid container spacing={3} sx={{ mb: 3 }}>
               <Grid size={{ xs: 12, md: 6 }}>
                 <TextField
                   label="Username"
+                  disabled
                   value={accountInfo.username}
-                  onChange={(e) => setAccountInfo({ ...accountInfo, username: e.target.value })}
                   fullWidth
-                  variant="outlined"
                 />
               </Grid>
               <Grid size={{ xs: 12, md: 6 }}>
@@ -369,7 +438,6 @@ const Settings = () => {
                   value={accountInfo.accountEmail}
                   onChange={(e) => setAccountInfo({ ...accountInfo, accountEmail: e.target.value })}
                   fullWidth
-                  variant="outlined"
                 />
               </Grid>
             </Grid>
@@ -377,24 +445,22 @@ const Settings = () => {
               <Grid size={{ xs: 12, md: 6 }}>
                 <TextField
                   select
-                  label="User Type"
+                  label="Account Role"
                   value={accountInfo.userType}
                   onChange={(e) => setAccountInfo({ ...accountInfo, userType: e.target.value })}
                   fullWidth
-                  variant="outlined"
                 >
                   <MenuItem value="Super Admin">Super Admin</MenuItem>
-                  <MenuItem value="Admin">Admin</MenuItem>
+                  <MenuItem value="Standard User">Standard User</MenuItem>
                 </TextField>
               </Grid>
               <Grid size={{ xs: 12, md: 6 }}>
                 <TextField
                   select
-                  label="Location"
+                  label="Country / Region"
                   value={accountInfo.location}
                   onChange={(e) => setAccountInfo({ ...accountInfo, location: e.target.value })}
                   fullWidth
-                  variant="outlined"
                 >
                   <MenuItem value="India">India</MenuItem>
                   <MenuItem value="USA">USA</MenuItem>
@@ -406,115 +472,92 @@ const Settings = () => {
 
           {/* Bottom Card: Advance Setting */}
           <Card sx={{ p: 3, borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-            <Typography variant="h6" sx={{ fontWeight: 600, mb: 1, color: '#333' }}>
-              Advance Setting
+            <Typography variant="h6" sx={{ fontWeight: 600, mb: 1, color: 'text.primary' }}>
+              Preferences & Notifications
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Assign responsibility
+              Manage alerts and communication settings
             </Typography>
             <Stack spacing={1} sx={{ mb: 2 }}>
               <FormControlLabel
                 control={
                   <Switch
-                    checked={switches.gilad}
+                    checked={switches.emailNotif}
                     onChange={handleSwitchChange}
-                    name="gilad"
+                    name="emailNotif"
                     color="primary"
                   />
                 }
-                label="Gilad Gray"
+                label="Email Notifications on New Orders"
               />
               <FormControlLabel
                 control={
                   <Switch
-                    checked={switches.jason}
+                    checked={switches.orderAlerts}
                     onChange={handleSwitchChange}
-                    name="jason"
+                    name="orderAlerts"
                     color="primary"
                   />
                 }
-                label="Jason Killian"
+                label="Stock Level & Inventory Alerts"
               />
               <FormControlLabel
                 control={
                   <Switch
-                    checked={switches.antoine}
+                    checked={switches.security2FA}
                     onChange={handleSwitchChange}
-                    name="antoine"
+                    name="security2FA"
                     color="primary"
                   />
                 }
-                label="Antoine Llorca"
+                label="Require Two-Factor Authentication (2FA) on Login"
               />
             </Stack>
-            <Typography variant="caption" color="text.secondary">
-              Be careful
-            </Typography>
           </Card>
-
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={() => handleSaveAlert('Account Updated!', 'Your account settings have been saved.')}
-              startIcon={<SaveIcon />}
-              sx={{ px: 4, py: 1.2, fontWeight: 700, borderRadius: 1.5 }}
-            >
-              Save Account Settings
-            </Button>
-          </Box>
         </Stack>
       )}
 
       {/* Tab 3: Change Password */}
       {tabIndex === 3 && (
-        <Card sx={{ p: 3, borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.05)', maxWidth: 600 }}>
-          <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, color: '#333' }}>
-            Change Password
+        <Card sx={{ p: 3, borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.05)', maxWidth: 500 }}>
+          <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, color: 'text.primary' }}>
+            Change Account Password
           </Typography>
-          <Box
-            component="form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (passwords.newPass && passwords.newPass === passwords.confirm) {
-                handleSaveAlert('Password Changed!', 'Your password has been updated.');
-                setPasswords({ current: '', newPass: '', confirm: '' });
-              } else {
-                Swal.fire('Error', 'New passwords do not match.', 'error');
-              }
-            }}
-            sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}
-          >
-            <TextField
-              label="Current Password"
-              type="password"
-              value={passwords.current}
-              onChange={(e) => setPasswords({ ...passwords, current: e.target.value })}
-              required
-              fullWidth
-              variant="outlined"
-            />
-            <TextField
-              label="New Password"
-              type="password"
-              value={passwords.newPass}
-              onChange={(e) => setPasswords({ ...passwords, newPass: e.target.value })}
-              required
-              fullWidth
-              variant="outlined"
-            />
-            <TextField
-              label="Confirm New Password"
-              type="password"
-              value={passwords.confirm}
-              onChange={(e) => setPasswords({ ...passwords, confirm: e.target.value })}
-              required
-              fullWidth
-              variant="outlined"
-            />
-            <Button type="submit" variant="contained" color="primary" sx={{ width: 180, py: 1.2, fontWeight: 700 }}>
-              Update Password
-            </Button>
+          <Box component="form" onSubmit={handlePasswordSubmit}>
+            <Stack spacing={2.5}>
+              <TextField
+                label="Current Password"
+                type="password"
+                required
+                fullWidth
+                value={passwords.current}
+                onChange={(e) => setPasswords({ ...passwords, current: e.target.value })}
+              />
+              <TextField
+                label="New Password"
+                type="password"
+                required
+                fullWidth
+                value={passwords.newPass}
+                onChange={(e) => setPasswords({ ...passwords, newPass: e.target.value })}
+              />
+              <TextField
+                label="Confirm New Password"
+                type="password"
+                required
+                fullWidth
+                value={passwords.confirm}
+                onChange={(e) => setPasswords({ ...passwords, confirm: e.target.value })}
+              />
+              <Button
+                type="submit"
+                variant="contained"
+                startIcon={<SaveIcon />}
+                sx={{ py: 1.2, fontWeight: 700, borderRadius: 1.5, mt: 1 }}
+              >
+                Update Password
+              </Button>
+            </Stack>
           </Box>
         </Card>
       )}
