@@ -1,0 +1,4 @@
+/* Custom app overrides */
+.swal2-container {
+  font-family: inherit !important;
+}
