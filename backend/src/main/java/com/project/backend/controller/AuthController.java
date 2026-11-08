@@ -9,8 +9,10 @@ import com.project.backend.entity.User;
 import com.project.backend.repository.UserRepository;
 import com.project.backend.security.JwtUtils;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -46,41 +48,53 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(loginRequest.getUsername(), loginRequest.getPassword()));
+        try {
+            String identifier = loginRequest.getUsername() != null ? loginRequest.getUsername().trim() : "";
+            Authentication authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(identifier, loginRequest.getPassword()));
 
-        SecurityContextHolder.getContext().setAuthentication(authentication);
-        String jwt = jwtUtils.generateJwtToken(authentication);
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+            String jwt = jwtUtils.generateJwtToken(authentication);
 
-        UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-        List<String> roles = userDetails.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .collect(Collectors.toList());
+            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+            List<String> roles = userDetails.getAuthorities().stream()
+                    .map(GrantedAuthority::getAuthority)
+                    .collect(Collectors.toList());
 
-        User user = userRepository.findByUsername(userDetails.getUsername()).orElse(null);
+            User user = userRepository.findByUsernameOrEmailIgnoreCase(userDetails.getUsername()).orElse(null);
 
-        return ResponseEntity.ok(JwtResponse.builder()
-                .token(jwt)
-                .id(user != null ? user.getId() : null)
-                .username(userDetails.getUsername())
-                .email(user != null ? user.getEmail() : "")
-                .fullName(user != null ? user.getFullName() : "")
-                .roles(roles)
-                .build());
+            return ResponseEntity.ok(JwtResponse.builder()
+                    .token(jwt)
+                    .id(user != null ? user.getId() : null)
+                    .username(user != null ? user.getUsername() : userDetails.getUsername())
+                    .email(user != null ? user.getEmail() : "")
+                    .fullName(user != null ? user.getFullName() : "")
+                    .roles(roles)
+                    .build());
+        } catch (BadCredentialsException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new MessageResponse("Invalid username/email or password!"));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new MessageResponse("Authentication error: " + e.getMessage()));
+        }
     }
 
     @PostMapping("/signup")
     public ResponseEntity<?> registerUser(@Valid @RequestBody SignupRequest signUpRequest) {
-        if (userRepository.existsByUsername(signUpRequest.getUsername())) {
+        String username = signUpRequest.getUsername().trim();
+        String email = signUpRequest.getEmail().trim().toLowerCase();
+
+        if (userRepository.existsByUsernameIgnoreCase(username)) {
             return ResponseEntity
                     .badRequest()
-                    .body(new MessageResponse("Error: Username is already taken!"));
+                    .body(new MessageResponse("Error: Username '" + username + "' is already taken!"));
         }
 
-        if (userRepository.existsByEmail(signUpRequest.getEmail())) {
+        if (userRepository.existsByEmailIgnoreCase(email)) {
             return ResponseEntity
                     .badRequest()
-                    .body(new MessageResponse("Error: Email is already in use!"));
+                    .body(new MessageResponse("Error: Email '" + email + "' is already in use!"));
         }
 
         Set<Role> roles = new HashSet<>();
@@ -97,15 +111,15 @@ public class AuthController {
         }
 
         User user = User.builder()
-                .username(signUpRequest.getUsername())
-                .email(signUpRequest.getEmail())
-                .fullName(signUpRequest.getFullName())
+                .username(username)
+                .email(email)
+                .fullName(signUpRequest.getFullName() != null ? signUpRequest.getFullName().trim() : username)
                 .password(encoder.encode(signUpRequest.getPassword()))
                 .roles(roles)
                 .build();
 
         userRepository.save(user);
 
-        return ResponseEntity.ok(new MessageResponse("User registered successfully!"));
+        return ResponseEntity.ok(new MessageResponse("User registered successfully! You can now log in."));
     }
 }

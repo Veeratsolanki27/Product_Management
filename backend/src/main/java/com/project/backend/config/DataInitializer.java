@@ -28,8 +28,8 @@ public class DataInitializer {
             OrderRepository orderRepository,
             PasswordEncoder passwordEncoder) {
         return args -> {
-            // Seed Default Admin and User if not exists
-            if (userRepository.count() == 0) {
+            // Ensure admin exists with verified password 'admin123'
+            if (!userRepository.existsByUsernameIgnoreCase("admin")) {
                 User admin = User.builder()
                         .username("admin")
                         .fullName("Admin User")
@@ -37,7 +37,12 @@ public class DataInitializer {
                         .password(passwordEncoder.encode("admin123"))
                         .roles(Set.of(Role.ROLE_ADMIN, Role.ROLE_USER))
                         .build();
+                userRepository.save(admin);
+                System.out.println(">>> Seeded default admin: admin / admin123");
+            }
 
+            // Ensure demo user exists with verified password 'user123'
+            if (!userRepository.existsByUsernameIgnoreCase("user")) {
                 User user = User.builder()
                         .username("user")
                         .fullName("Demo User")
@@ -45,9 +50,8 @@ public class DataInitializer {
                         .password(passwordEncoder.encode("user123"))
                         .roles(Set.of(Role.ROLE_USER))
                         .build();
-
-                userRepository.saveAll(List.of(admin, user));
-                System.out.println(">>> Seeded default users: admin/admin123 and user/user123");
+                userRepository.save(user);
+                System.out.println(">>> Seeded default user: user / user123");
             }
 
             // Seed Products
